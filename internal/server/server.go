@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/Alaghal/go-api-gateway/internal/config"
 	"github.com/Alaghal/go-api-gateway/internal/handlers"
+	appMiddleware "github.com/Alaghal/go-api-gateway/internal/middleware"
 )
 
 type Server struct {
@@ -20,9 +22,7 @@ type Server struct {
 }
 
 func New(cfg config.Config) *Server {
-	router := chi.NewRouter()
-
-	router.Get("/health", handlers.Health())
+	router := newRouter()
 
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
@@ -37,6 +37,25 @@ func New(cfg config.Config) *Server {
 		httpServer: httpServer,
 		cfg:        cfg,
 	}
+}
+
+func newRouter() http.Handler {
+	router := chi.NewRouter()
+
+	router.Use(chiMiddleware.Timeout(10 * time.Second))
+	router.Use(appMiddleware.RequestID)
+	router.Use(appMiddleware.Logging)
+	router.Use(appMiddleware.Recovery)
+
+	router.Get("/health", handlers.Health())
+
+	router.Route("/api", func(r chi.Router) {
+		r.Route("/v1", func(r chi.Router) {
+			r.Get("/ping", handlers.Ping())
+		})
+	})
+
+	return router
 }
 
 func (s *Server) Run(ctx context.Context) error {

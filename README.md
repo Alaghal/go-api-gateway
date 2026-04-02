@@ -14,3 +14,18 @@ High-performance API Gateway written in Go with routing, rate limiting, and obse
 
 ```bash
 go run ./cmd/server
+```
+
+## Routing and Middleware
+
+The gateway uses `chi` for HTTP routing and includes:
+
+- request timeout middleware
+- request ID propagation via `X-Request-Id`
+- request logging with status code and duration
+- panic recovery middleware
+
+### Available endpoints
+
+- `GET /health`
+- `GET /api/v1/ping`
