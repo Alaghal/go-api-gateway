@@ -54,3 +54,30 @@ Example:
 ```bash
 export RATE_LIMIT_RPS=10
 export RATE_LIMIT_BURST=20
+```
+
+
+## Metrics
+
+The gateway exposes Prometheus-compatible metrics via:
+
+```text
+GET /metrics
+```
+### Collected metrics
+- total HTTP requests
+- request duration
+- in-flight requests
+- status code distribution
+- method and route labels
+### Example metrics
+- gateway_http_requests_total
+- gateway_http_request_duration_seconds
+- gateway_http_in_flight_requests
+### Local check
+
+```bash
+curl http://localhost:8080/metrics
+```
+
+This endpoint is ready for Prometheus scraping and Grafana dashboards.
