@@ -43,10 +43,13 @@ func New(cfg config.Config) *Server {
 func newRouter(cfg config.Config) http.Handler {
 	router := chi.NewRouter()
 
+	rateLimiter := appMiddleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
+
 	router.Use(chiMiddleware.Timeout(15 * time.Second))
 	router.Use(appMiddleware.RequestID)
-	router.Use(appMiddleware.Logging)
 	router.Use(appMiddleware.Recovery)
+	router.Use(appMiddleware.Logging)
+	router.Use(rateLimiter.Middleware)
 
 	router.Get("/health", handlers.Health())
 
