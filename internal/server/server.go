@@ -10,9 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Alaghal/go-api-gateway/internal/config"
 	"github.com/Alaghal/go-api-gateway/internal/handlers"
+	appMetrics "github.com/Alaghal/go-api-gateway/internal/metrics"
 	appMiddleware "github.com/Alaghal/go-api-gateway/internal/middleware"
 	"github.com/Alaghal/go-api-gateway/internal/proxy"
 )
@@ -43,15 +45,18 @@ func New(cfg config.Config) *Server {
 func newRouter(cfg config.Config) http.Handler {
 	router := chi.NewRouter()
 
+	metricsRegistry := appMetrics.MustNew()
 	rateLimiter := appMiddleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
 
 	router.Use(chiMiddleware.Timeout(15 * time.Second))
 	router.Use(appMiddleware.RequestID)
 	router.Use(appMiddleware.Recovery)
 	router.Use(appMiddleware.Logging)
+	router.Use(appMiddleware.Metrics(metricsRegistry))
 	router.Use(rateLimiter.Middleware)
 
 	router.Get("/health", handlers.Health())
+	router.Handle("/metrics", promhttp.Handler())
 
 	router.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
