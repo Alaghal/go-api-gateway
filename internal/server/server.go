@@ -14,6 +14,7 @@ import (
 	"github.com/Alaghal/go-api-gateway/internal/config"
 	"github.com/Alaghal/go-api-gateway/internal/handlers"
 	appMiddleware "github.com/Alaghal/go-api-gateway/internal/middleware"
+	"github.com/Alaghal/go-api-gateway/internal/proxy"
 )
 
 type Server struct {
@@ -22,14 +23,14 @@ type Server struct {
 }
 
 func New(cfg config.Config) *Server {
-	router := newRouter()
+	router := newRouter(cfg)
 
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
@@ -39,10 +40,10 @@ func New(cfg config.Config) *Server {
 	}
 }
 
-func newRouter() http.Handler {
+func newRouter(cfg config.Config) http.Handler {
 	router := chi.NewRouter()
 
-	router.Use(chiMiddleware.Timeout(10 * time.Second))
+	router.Use(chiMiddleware.Timeout(15 * time.Second))
 	router.Use(appMiddleware.RequestID)
 	router.Use(appMiddleware.Logging)
 	router.Use(appMiddleware.Recovery)
@@ -54,6 +55,16 @@ func newRouter() http.Handler {
 			r.Get("/ping", handlers.Ping())
 		})
 	})
+
+	authProxy, err := proxy.NewReverseProxy(cfg.AuthServiceURL, cfg.UpstreamTimeout)
+	if err != nil {
+		panic(fmt.Errorf("init auth reverse proxy: %w", err))
+	}
+
+	log.Printf("auth-service proxy configured target=%s", authProxy.Target())
+
+	router.Handle("/api/v1/auth/*", authProxy)
+	router.Handle("/api/v1/users/*", authProxy)
 
 	return router
 }

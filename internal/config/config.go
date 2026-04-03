@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
-	AppEnv   string
-	Port     int
-	LogLevel string
+	AppEnv          string
+	Port            int
+	LogLevel        string
+	AuthServiceURL  string
+	UpstreamTimeout time.Duration
 }
 
 func MustLoad() Config {
@@ -26,10 +29,17 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("load config: %w", err)
 	}
 
+	timeoutSeconds, err := getEnvAsInt("UPSTREAM_TIMEOUT_SECONDS", 5)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+
 	cfg := Config{
-		AppEnv:   getEnv("APP_ENV", "local"),
-		Port:     port,
-		LogLevel: getEnv("LOG_LEVEL", "info"),
+		AppEnv:          getEnv("APP_ENV", "local"),
+		Port:            port,
+		LogLevel:        getEnv("LOG_LEVEL", "info"),
+		AuthServiceURL:  getEnv("AUTH_SERVICE_URL", "http://localhost:8081"),
+		UpstreamTimeout: time.Duration(timeoutSeconds) * time.Second,
 	}
 
 	return cfg, nil
