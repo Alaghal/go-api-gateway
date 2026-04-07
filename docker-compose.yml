@@ -13,11 +13,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
   auth-service:
     build:
@@ -26,8 +21,7 @@ services:
     container_name: backend-auth-service
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     environment:
       SERVER_PORT: 8081
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
@@ -38,11 +32,6 @@ services:
       APP_JWT_REFRESH_TOKEN_EXPIRATION_DAYS: 7
     ports:
       - "8081:8081"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || wget -qO- http://localhost:8081/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
   gateway:
     build:
@@ -51,8 +40,7 @@ services:
     container_name: go-api-gateway
     restart: unless-stopped
     depends_on:
-      auth-service:
-        condition: service_started
+      - auth-service
     environment:
       APP_ENV: docker
       APP_PORT: 8080
@@ -62,11 +50,33 @@ services:
       RATE_LIMIT_BURST: 20
     ports:
       - "8080:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    restart: unless-stopped
+    depends_on:
+      - gateway
+      - auth-service
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
 
 volumes:
   postgres_data:
+  grafana_data:
