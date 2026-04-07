@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: auth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ../backend-auth-service
+      dockerfile: Dockerfile
+    container_name: backend-auth-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: auth_user
+      SPRING_DATASOURCE_PASSWORD: auth_password
+      APP_JWT_SECRET: very-secret-key-change-me-in-real-project-very-secret-key
+      APP_JWT_ACCESS_TOKEN_EXPIRATION_MINUTES: 15
+      APP_JWT_REFRESH_TOKEN_EXPIRATION_DAYS: 7
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || wget -qO- http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: go-api-gateway
+    restart: unless-stopped
+    depends_on:
+      auth-service:
+        condition: service_started
+    environment:
+      APP_ENV: docker
+      APP_PORT: 8080
+      AUTH_SERVICE_URL: http://auth-service:8081
+      UPSTREAM_TIMEOUT_SECONDS: 5
+      RATE_LIMIT_RPS: 10
+      RATE_LIMIT_BURST: 20
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
