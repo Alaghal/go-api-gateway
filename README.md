@@ -80,4 +80,17 @@ GET /metrics
 curl http://localhost:8080/metrics
 ```
 
-This endpoint is ready for Prometheus scraping and Grafana dashboards.
+## Monitoring Stack
+
+The project includes a local monitoring setup with:
+
+- **Prometheus** for metrics collection
+- **Grafana** for visualization
+- **Gateway metrics** exposed via `/metrics`
+- **Auth service metrics** exposed via `/actuator/prometheus`
+
+### Run the full system
+
+```bash
+docker compose up --build
+```
