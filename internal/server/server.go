@@ -73,6 +73,7 @@ func newRouter(cfg config.Config) http.Handler {
 
 	router.Handle("/api/v1/auth/*", authProxy)
 	router.Handle("/api/v1/users/*", authProxy)
+	router.Handle("/docs/*", http.StripPrefix("/docs/", http.FileServer(http.Dir("./api"))))
 
 	return router
 }

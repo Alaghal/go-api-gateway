@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"time"
 
 	appMiddleware "github.com/Alaghal/go-api-gateway/internal/middleware"
@@ -16,6 +17,8 @@ import (
 type ReverseProxy struct {
 	target  *url.URL
 	handler *httputil.ReverseProxy
+	breaker *CircuitBreaker
+	retries int
 }
 
 func NewReverseProxy(targetURL string, timeout time.Duration) (*ReverseProxy, error) {
@@ -95,14 +98,67 @@ func NewReverseProxy(targetURL string, timeout time.Duration) (*ReverseProxy, er
 		return nil
 	}
 
+	breaker := NewCircuitBreaker(5, 10*time.Second)
+
 	return &ReverseProxy{
 		target:  parsedURL,
 		handler: rp,
+		breaker: breaker,
+		retries: 2,
 	}, nil
 }
 
 func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	rp.handler.ServeHTTP(w, r)
+	if !rp.breaker.Allow() {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":"service temporarily unavailable"}`))
+		return
+	}
+
+	type result struct {
+		err        error
+		statusCode int
+	}
+
+	for i := 0; i <= rp.retries; i++ {
+		done := make(chan result, 1)
+
+		rec := &responseRecorder{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK,
+			mu:             &sync.Mutex{},
+		}
+
+		go func() {
+			rp.handler.ServeHTTP(rec, r)
+			done <- result{err: nil, statusCode: rec.statusCode}
+		}()
+
+		select {
+		case res := <-done:
+			if res.err == nil && res.statusCode < 500 {
+				rp.breaker.Success()
+				return
+			}
+
+		case <-time.After(2 * time.Second):
+			rp.breaker.Failure()
+			if i == rp.retries {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusGatewayTimeout)
+				_, _ = w.Write([]byte(`{"error":"upstream request timed out"}`))
+				return
+			}
+			continue
+		}
+	}
+
+	rp.breaker.Failure()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadGateway)
+	_, _ = w.Write([]byte(`{"error":"upstream failed after retries"}`))
 }
 
 func (rp *ReverseProxy) Target() string {
@@ -120,4 +176,17 @@ func isTimeoutError(err error) bool {
 
 	var netErr net.Error
 	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode int
+	mu         *sync.Mutex
+}
+
+func (rec *responseRecorder) WriteHeader(code int) {
+	rec.mu.Lock()
+	rec.statusCode = code
+	rec.mu.Unlock()
+	rec.ResponseWriter.WriteHeader(code)
 }

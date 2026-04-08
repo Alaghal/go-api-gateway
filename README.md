@@ -1,96 +1,114 @@
-# go-api-gateway
+# Go API Gateway 🚀
 
-High-performance API Gateway written in Go with routing, rate limiting, and observability.
+High-performance, lightweight API Gateway written in Go, featuring routing, rate limiting, observability, and resilience mechanisms.
 
-## Features
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-- Lightweight HTTP server in Go
-- Chi-based routing
-- Health endpoint
-- Environment-based configuration
-- Graceful shutdown
+---
 
-## Run locally
+## ✨ Features
 
-```bash
-go run ./cmd/server
-```
+- **Performance**: Built with `chi` for fast, lightweight HTTP routing.
+- **Rate Limiting**: Per-IP token-bucket rate limiting to prevent upstream overload.
+- **Resilience**: Integrated **Retry** and **Circuit Breaker** patterns for proxying.
+- **Observability**: Native Prometheus metrics and structured logging.
+- **Security**: Request ID propagation and panic recovery middleware.
+- **Documentation**: Built-in OpenAPI specification and Swagger UI.
+- **Modern**: Fully containerized with Docker and Docker Compose.
 
-## Routing and Middleware
+---
 
-The gateway uses `chi` for HTTP routing and includes:
+## 🛠 Tech Stack
 
-- request timeout middleware
-- request ID propagation via `X-Request-Id`
-- request logging with status code and duration
-- panic recovery middleware
+- **Language**: Go 1.25
+- **Router**: [go-chi/chi](https://github.com/go-chi/chi)
+- **Metrics**: [Prometheus](https://prometheus.io/)
+- **Monitoring**: [Grafana](https://grafana.com/)
+- **Documentation**: [OpenAPI (Swagger)](https://swagger.io/specification/)
+- **Containerization**: Docker & Docker Compose
 
-### Available endpoints
+---
 
-- `GET /health`
-- `GET /api/v1/ping`
-## Rate Limiting
+## 🚀 Getting Started
 
-The gateway includes per-IP rate limiting middleware to protect upstream services from excessive traffic.
+### Prerequisites
 
-### Features
+- Go 1.25+ (for local development)
+- Docker & Docker Compose (for running the full stack)
 
-- token-bucket rate limiting
-- configurable requests per second
-- configurable burst capacity
-- `429 Too Many Requests` response on limit exceeded
-- `Retry-After` header
-- logging for rate-limited requests
+### Quick Start (Docker)
 
-### Configuration
-
-Environment variables:
-
-- `RATE_LIMIT_RPS` - allowed requests per second per client IP
-- `RATE_LIMIT_BURST` - burst capacity per client IP
-
-Example:
-
-```bash
-export RATE_LIMIT_RPS=10
-export RATE_LIMIT_BURST=20
-```
-
-
-## Metrics
-
-The gateway exposes Prometheus-compatible metrics via:
-
-```text
-GET /metrics
-```
-### Collected metrics
-- total HTTP requests
-- request duration
-- in-flight requests
-- status code distribution
-- method and route labels
-### Example metrics
-- gateway_http_requests_total
-- gateway_http_request_duration_seconds
-- gateway_http_in_flight_requests
-### Local check
-
-```bash
-curl http://localhost:8080/metrics
-```
-
-## Monitoring Stack
-
-The project includes a local monitoring setup with:
-
-- **Prometheus** for metrics collection
-- **Grafana** for visualization
-- **Gateway metrics** exposed via `/metrics`
-- **Auth service metrics** exposed via `/actuator/prometheus`
-
-### Run the full system
+To launch the Gateway along with the Auth service, Prometheus, Grafana, and Swagger UI:
 
 ```bash
 docker compose up --build
 ```
+
+### Local Development
+
+1. Install dependencies:
+   ```bash
+   go mod download
+   ```
+
+2. Run the server:
+   ```bash
+   go run ./cmd/server
+   ```
+   *Note: Ensure `AUTH_SERVICE_URL` is configured if testing proxying.*
+
+---
+
+## ⚙️ Configuration
+
+The Gateway is configured using environment variables.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `APP_PORT` | Port for the gateway server | `8080` |
+| `APP_ENV` | Environment (`local`, `docker`) | `local` |
+| `LOG_LEVEL` | Logging level (`debug`, `info`, `warn`, `error`) | `info` |
+| `AUTH_SERVICE_URL` | Upstream Auth service URL | `http://localhost:8081` |
+| `UPSTREAM_TIMEOUT_SECONDS` | Proxy request timeout | `5` |
+| `RATE_LIMIT_RPS` | Allowed requests per second per IP | `10` |
+| `RATE_LIMIT_BURST` | Burst capacity per IP | `20` |
+
+---
+
+## 🛣 API Endpoints
+
+### Internal
+- `GET /health`: Health check endpoint.
+- `GET /metrics`: Prometheus metrics.
+- `GET /api/v1/ping`: Simple connectivity test.
+- `GET /docs/*`: Serves `openapi.yaml`.
+
+### Proxying (to Auth Service)
+- `ANY /api/v1/auth/*`: Routed to Auth Service.
+- `ANY /api/v1/users/*`: Routed to Auth Service.
+
+---
+
+## 🛡 Resilience & Rate Limiting
+
+- **Rate Limiting**: Rejects excessive traffic with `429 Too Many Requests` and includes `Retry-After` header.
+- **Retries**: Automatically retries failed requests to upstream services.
+- **Circuit Breaker**: Monitors upstream health and "trips" if failures exceed thresholds, preventing cascading failures.
+
+---
+
+## 📊 Monitoring & Docs
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Gateway** | [http://localhost:8080](http://localhost:8080) | - |
+| **Swagger UI** | [http://localhost:8082](http://localhost:8082) | - |
+| **Prometheus** | [http://localhost:9090](http://localhost:9090) | - |
+| **Grafana** | [http://localhost:3000](http://localhost:3000) | `admin` / `admin` |
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
