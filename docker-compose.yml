@@ -14,6 +14,17 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  swagger-ui:
+    image: swaggerapi/swagger-ui:v5.17.14
+    container_name: swagger-ui
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    environment:
+      URL: http://gateway:8080/docs/openapi.yaml
+    ports:
+      - "8082:8080"
+  
   auth-service:
     build:
       context: ../backend-auth-service
