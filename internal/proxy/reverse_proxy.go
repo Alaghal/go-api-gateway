@@ -6,9 +6,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"sync"
 	"time"
 
 	appMiddleware "github.com/Alaghal/go-api-gateway/internal/middleware"
@@ -116,45 +116,25 @@ func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type result struct {
-		err        error
-		statusCode int
-	}
-
 	for i := 0; i <= rp.retries; i++ {
-		done := make(chan result, 1)
+		rec := httptest.NewRecorder()
+		rp.handler.ServeHTTP(rec, r)
 
-		rec := &responseRecorder{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK,
-			mu:             &sync.Mutex{},
+		if rec.Code < 500 {
+			rp.breaker.Success()
+			for k, v := range rec.Header() {
+				w.Header()[k] = v
+			}
+			w.WriteHeader(rec.Code)
+			_, _ = w.Write(rec.Body.Bytes())
+			return
 		}
 
-		go func() {
-			rp.handler.ServeHTTP(rec, r)
-			done <- result{err: nil, statusCode: rec.statusCode}
-		}()
-
-		select {
-		case res := <-done:
-			if res.err == nil && res.statusCode < 500 {
-				rp.breaker.Success()
-				return
-			}
-
-		case <-time.After(2 * time.Second):
-			rp.breaker.Failure()
-			if i == rp.retries {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusGatewayTimeout)
-				_, _ = w.Write([]byte(`{"error":"upstream request timed out"}`))
-				return
-			}
-			continue
+		rp.breaker.Failure()
+		if i < rp.retries {
+			time.Sleep(100 * time.Millisecond) // Simple backoff
 		}
 	}
-
-	rp.breaker.Failure()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadGateway)
@@ -176,17 +156,4 @@ func isTimeoutError(err error) bool {
 
 	var netErr net.Error
 	return errors.As(err, &netErr) && netErr.Timeout()
-}
-
-type responseRecorder struct {
-	http.ResponseWriter
-	statusCode int
-	mu         *sync.Mutex
-}
-
-func (rec *responseRecorder) WriteHeader(code int) {
-	rec.mu.Lock()
-	rec.statusCode = code
-	rec.mu.Unlock()
-	rec.ResponseWriter.WriteHeader(code)
 }
