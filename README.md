@@ -98,7 +98,23 @@ The Gateway is configured using environment variables.
 
 ---
 
-## 📊 Monitoring & Docs
+
+## 📊 Monitoring & Observability
+
+The project includes a pre-configured Grafana dashboard to monitor Gateway performance:
+
+![Grafana Dashboard](img.png)
+
+The dashboard tracks:
+- Request Rate (RPS)
+- Error Rates (4xx/5xx)
+- Request Latency (P95, P99)
+- Circuit Breaker Status
+- Rate Limiting Drops
+
+---
+
+### Infrastructure Links
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
@@ -108,7 +124,6 @@ The Gateway is configured using environment variables.
 | **Grafana** | [http://localhost:3000](http://localhost:3000) | `admin` / `admin` |
 
 ---
-
 ## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
